@@ -24,23 +24,65 @@ var Eye = vec3.clone(defaultEye); // eye position in world space
 var Center = vec3.clone(defaultCenter); // view direction in world space
 var Up = vec3.clone(defaultUp); // view up vector in world space
 
+function handleKeyDown(event) {
+    // set up needed view params
+    var lookAt = vec3.create(), viewRight = vec3.create(), temp = vec3.create(); // lookat, right & temp vectors
+    lookAt = vec3.normalize(lookAt,vec3.subtract(temp,Center,Eye)); // get lookat vector
+    viewRight = vec3.normalize(viewRight,vec3.cross(temp,lookAt,Up)); // get view right vector
+    
+
+    switch (event.code) {
+            
+        // view change
+        case "KeyA": // translate view left, rotate left with shift
+            Center = vec3.add(Center,Center,vec3.scale(temp,viewRight,0.05));
+            Eye = vec3.add(Eye,Eye,vec3.scale(temp,viewRight,0.05));
+            break;
+        case "KeyD": // translate view right, rotate right with shift
+            Center = vec3.add(Center,Center,vec3.scale(temp,viewRight,-0.05));
+            Eye = vec3.add(Eye,Eye,vec3.scale(temp,viewRight,-0.05));
+            break;
+        case "KeyS": // translate view backward, rotate up with shift
+                Eye = vec3.add(Eye,Eye,vec3.scale(temp,lookAt,-0.05));
+                Center = vec3.add(Center,Center,vec3.scale(temp,lookAt,-0.05));
+            break;
+        case "KeyW": // translate view forward, rotate down with shift
+                Eye = vec3.add(Eye,Eye,vec3.scale(temp,lookAt,0.05));
+                Center = vec3.add(Center,Center,vec3.scale(temp,lookAt,0.05));
+            break;
+        case "KeyQ": // translate view up, rotate counterclockwise with shift
+                Eye = vec3.add(Eye,Eye,vec3.scale(temp,Up,0.05));
+                Center = vec3.add(Center,Center,vec3.scale(temp,Up,0.05));
+            break;
+        case "KeyE": // translate view down, rotate clockwise with shift
+                Eye = vec3.add(Eye,Eye,vec3.scale(temp,Up,-0.05));
+                Center = vec3.add(Center,Center,vec3.scale(temp,Up,-0.05));
+            break;
+        case "Escape": // reset view to default
+            Eye = vec3.copy(Eye,defaultEye);
+            Center = vec3.copy(Center,defaultCenter);
+            Up = vec3.copy(Up,defaultUp);
+            break;
+    } // end switch
+} // end handleKeyDown
+
 function setupWebGL() {
     
     // Set up keys
-    ////document.onkeydown = handleKeyDown; // call this when key pressed
+    document.onkeydown = handleKeyDown; // call this when key pressed
 
 
-    //var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
-    //  var cw = imageCanvas.width, ch = imageCanvas.height; 
-    //  imageContext = imageCanvas.getContext("2d"); 
-    //  var bkgdImage = new Image(); 
-    //  bkgdImage.crossorigin = "anonymous";
-    //  bkgdImage.src = "https://ncsucgclass.github.io/prog3/sky.jpg";
-    //  //bkgdImage.src = "https://raw.githubusercontent.com/thepkd/4x4bitFusion/master/564.png";
-    //  bkgdImage.onload = function(){
-    //      var iw = bkgdImage.width, ih = bkgdImage.height;
-    //      imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);   
-    // }
+    var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
+      var cw = imageCanvas.width, ch = imageCanvas.height; 
+      imageContext = imageCanvas.getContext("2d"); 
+      var bkgdImage = new Image(); 
+      bkgdImage.crossorigin = "anonymous";
+      bkgdImage.src = "https://ncsucgclass.github.io/prog3/sky.jpg";
+      //bkgdImage.src = "https://raw.githubusercontent.com/thepkd/4x4bitFusion/master/564.png";
+      bkgdImage.onload = function(){
+          var iw = bkgdImage.width, ih = bkgdImage.height;
+          imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);   
+     }
 
      
     // Get the canvas and context
@@ -140,7 +182,7 @@ function makeSquare(){
     var vertexBuf = [];
     var triBuf = [];
     var vertices = [[0,0,0.2],[0.2,0,0.2],[0.2,0.2,0.2],[0,0.2,0.2],[0,0,0],[0.2,0,0],[0.2,0.2,0],[0,0.2,0]];
-    var triangles = [[0,1,2],[1,2,3],[1,5,6],[5,6,2],[5,4,7],[4,7,6],[4,0,3],[0,3,7],[3,2,6],[2,6,7],[1,0,4],[0,4,5]];
+    var triangles = [[0,1,2],[2,3,0],[1,5,6],[6,2,1],[5,4,7],[7,6,5],[4,0,3],[3,7,4],[3,2,6],[6,7,3],[1,0,4],[4,5,1]];
     //normals = [(0,0,1),(0,0,1),(0,0,1),(0,0,1),()]
 
     //console.log(vertices.length);
