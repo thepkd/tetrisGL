@@ -1,17 +1,33 @@
-var gameLength = 10;
+// Game Aspect Ratio
+var gameLength = 12;
 var gameWidth = 6;
 
+// Game Matrices
+var buf_frame = [];
+var buf_field = []; //gameLength X gameWidth
+var buf_block = []; //gameLength X gameWidth
+//var block = []; //2x2
+var blockDim = 2;
+
+// Real Object buffers
 var objArr=[];
 var vertBuffer=[];
 var triBuffer = [];
 
+// Bkgd Placeholder Object Buffers.
+var bkgdObjArr = [];
+var bkgdVertBuffer=[];
+var bkgdTriBuffer = [];
 var triBufSize =12; // CUbe with 6 faces and 12 traingles.
 
+// Uniform Locations.
 var vPosAttribLoc; // where to put position for vertex shader
 var mMatrixULoc; // where to put model matrix for vertex shader
 var pvmMatrixULoc;        
 
-var defaultEye = vec3.fromValues(0.5,0.5,-0.5); // default eye position in world space
+var selectBkgdULoc;
+
+var defaultEye = vec3.fromValues(0.5,0.5,1.5); // default eye position in world space
 var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0,1,0); // default view up vector
 var lightAmbient = vec3.fromValues(1,1,1); // default light ambient emission
@@ -93,7 +109,7 @@ function setupWebGL() {
       if (gl == null) {
         throw "unable to create gl context -- is your browser gl ready?";
       } else {
-        gl.clearColor(0.0, 0.0, 0.0, 1.0); // use black when we clear the frame buffer
+        //gl.clearColor(0.0, 0.0, 0.0, 0.7); // use black when we clear the frame buffer
         gl.clearDepth(1.0); // use max when we clear the depth buffer
         gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
         //gl.enable(gl.BLEND);
@@ -129,11 +145,14 @@ function setupShaders() {
     // define fragment shader in essl using es6 template strings
     var fShaderCode = `
         precision mediump float; // set float to medium precision
-            
+        uniform int uSelectBkgd;    
         void main(void) {
         
             // ambient term
-            gl_FragColor = vec4(0.0,1.0,1.0,1.0); 
+            if(uSelectBkgd==1)
+            gl_FragColor = vec4(0.0,0.0,0.0,1.0); 
+            else
+            gl_FragColor = vec4(0.0,1.0,1.0,1.0);
         }
     `;
     
@@ -169,6 +188,8 @@ function setupShaders() {
                 
                 mMatrixULoc = gl.getUniformLocation(shaderProgram, "umMatrix"); // ptr to mmat
                 pvmMatrixULoc = gl.getUniformLocation(shaderProgram, "upvmMatrix"); // ptr to pvmmat
+
+                selectBkgdULoc = gl.getUniformLocation(shaderProgram, "uSelectBkgd");
             } // end if no shader program link errors
         } // end if no compile errors
     } // end try 
@@ -210,37 +231,38 @@ function cubeObj() {
     this.translation = vec3.fromValues(0,0,0);
     this.xAxis = vec3.fromValues(1,0,0);
     this.yAxis = vec3.fromValues(0,1,0);
-    this.center = vec3.fromValues(0.5,0.5,0.5);
+    this.center = vec3.fromValues(0.1,0.1,0.1);
 }
 
-function initCubes(l,w) {
+function initCubes(l,w, vert, tri, z) {
     var cubeModel;
-    objArr = new Array(l);
+    arr = new Array(l);
     for(i=0;i<l;i++)
     {
-        objArr[i] = new Array(w);
+        arr[i] = new Array(w);
     }
 
     for(i=0;i<l;i++)
     { 
         for(j=0;j<w;j++)
         { 
-            objArr[i][j]= new cubeObj();
-            objArr[i][j].translation = vec3.fromValues(i*0.5,j*0.5,0);
+            arr[i][j]= new cubeObj();
+            arr[i][j].translation = vec3.fromValues(j*0.5,i*0.5,z);
             cubeModel  = makeSquare();   
             //console.log(cubeModel.vertices);
             //console.log(cubeModel.triangles);
 
-            vertBuffer.push(gl.createBuffer());
-            gl.bindBuffer(gl.ARRAY_BUFFER,vertBuffer[vertBuffer.length-1]); // activate that buffer
+            vert.push(gl.createBuffer());
+            gl.bindBuffer(gl.ARRAY_BUFFER,vert[vert.length-1]); // activate that buffer
             gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(cubeModel.vertices),gl.STATIC_DRAW);
 
-            triBuffer.push(gl.createBuffer());
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,triBuffer[triBuffer.length-1]); // activate that buffer
+            tri.push(gl.createBuffer());
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,tri[tri.length-1]); // activate that buffer
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(cubeModel.triangles),gl.STATIC_DRAW);
         }
     }
-    //console.log(objArr);
+    console.log(arr);
+    return arr;
 }
 
 function renderCubes(){
@@ -248,7 +270,7 @@ function renderCubes(){
         var neg = vec3.create(); var temp = mat4.create();
         mat4.fromTranslation(mMatrix, vec3.negate(neg,model.center)); //move to center
 
-        mat4.multiply(mMatrix,mat4.fromScaling(temp,vec3.fromValues(0.9,0.9,0.9)),mMatrix); //Scaled
+        mat4.multiply(mMatrix,mat4.fromScaling(temp,vec3.fromValues(1.5,1.5,1.5)),mMatrix); //Scaled
 
         mat4.multiply(mMatrix, mat4.fromTranslation(temp,model.center),mMatrix); //Back to center
         mat4.multiply(mMatrix, mat4.fromTranslation(temp,model.translation),mMatrix); // Back to translation
@@ -262,7 +284,7 @@ function renderCubes(){
     gl.clear(gl.COLOR_BUFFER_BIT ); // clear frame/depth buffers
     // set up projection and view
     // mat4.fromScaling(hMatrix,vec3.fromValues(-1,1,1)); // create handedness matrix
-    mat4.perspective(pMatrix,0.5*Math.PI,1,0.1,10); // create projection matrix
+    mat4.perspective(pMatrix,0.25*Math.PI,1,0.1,10); // create projection matrix
     mat4.lookAt(vMatrix,Eye,Center,Up); // create view matrix
     mat4.multiply(pvMatrix,pvMatrix,pMatrix); // projection
     mat4.multiply(pvMatrix,pvMatrix,vMatrix); // projection * view
@@ -273,6 +295,9 @@ function renderCubes(){
     {
         for(var j=0; j<gameWidth; j++){
                 var index= (gameWidth*i)+j;
+                gl.uniform1i(selectBkgdULoc, 0);
+                if(buf_frame[i][j]==true)
+                {
                 makeCubeTransform(objArr[i][j]);
                 mat4.multiply(pvmMatrix,pvMatrix,mMatrix); // project * view * model
                 gl.uniformMatrix4fv(mMatrixULoc, false, mMatrix); // pass in the m matrix
@@ -281,19 +306,164 @@ function renderCubes(){
                 // vertex buffer: activate and feed into vertex shader
                 gl.bindBuffer(gl.ARRAY_BUFFER,vertBuffer[index]); // activate
                 gl.vertexAttribPointer(vPosAttribLoc,3,gl.FLOAT,false,0,0); // feed
-
                 //console.log(index); console.log(triBuffer[index]);
                 // triangle buffer: activate and render
                 gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,triBuffer[index]); // activate
                 gl.drawElements(gl.TRIANGLES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
+                //gl.drawElements(gl.LINES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
+                }
         }
     }
+    for(var i=0;i<gameLength; i++)
+    {
+        for(var j=0; j<gameWidth; j++){
+                var index= (gameWidth*i)+j;
+                gl.uniform1i(selectBkgdULoc, 1);
+
+                makeCubeTransform(bkgdObjArr[i][j]);
+                mat4.multiply(pvmMatrix,pvMatrix,mMatrix); // project * view * model
+                gl.uniformMatrix4fv(mMatrixULoc, false, mMatrix); // pass in the m matrix
+                gl.uniformMatrix4fv(pvmMatrixULoc, false, pvmMatrix); // pass in the hpvm matrix
+        
+                // vertex buffer: activate and feed into vertex shader
+                gl.bindBuffer(gl.ARRAY_BUFFER,bkgdVertBuffer[index]); // activate
+                gl.vertexAttribPointer(vPosAttribLoc,3,gl.FLOAT,false,0,0); // feed
+
+                //console.log(index); console.log(triBuffer[index]);
+                // triangle buffer: activate and render
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,bkgdTriBuffer[index]); // activate
+                //gl.drawElements(gl.TRIANGLES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
+                gl.drawElements(gl.LINES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
+        }
+    }
+
+}
+
+// 2x2 Block Matrix
+// 2x gameLengthXgameWidth Field matrices. One of them is to Union the 2x2 into the Main Field matrix dimension. Second is to remember previous settles blocks.
+function initBufBool(l,w, buf)
+{
+ for(let i=0;i<l;i++)
+ {
+     buf[i] = new Array(w);
+     for(let j=0; j<w; j++)
+     {            
+        buf[i][j] = false;
+     }
+ }   
+}
+
+function generateNewBlock() //Clears Block Buffer and adds new Block. This should be called after Union check is done and decision to make new block is made after freezing buf_field to buf_frame.
+{
+    function clearAddBuf(buf, block){
+        for(let i=0; i<gameLength; i++)
+        {
+            for(let j=0; j<gameWidth; j++)
+            {
+                buf[i][j] = false;
+                if(i>=gameLength-blockDim && (j>=(gameWidth/2)||(j<((gameWidth/2)+blockDim))) )
+                {
+                    buf[i][j] = block[i-(gameLength-blockDim)][j-(gameWidth/2)];
+                }
+            }
+        }
+    }
+    // Block configs;
+    var types =  [[[true,false],[true,true]],[[true,true],[true,true]]];
+    //2x2 Block.
+    let i = getRandomInt(types.length);
+    let block = types[i]; //2x2 block
+    clearAddBuf(buf_block, block);
+}
+
+function gameEngine()
+{
+    //Every time interval bring the 
+    generateNewBlock();
+    setInterval(gameQuantum, 1500);
+}
+
+function gameQuantum()
+{
+    //Call downshift on buffer_block->Run Check Union(which sees if downshift gives a positive union->If yes, save old, geenarate new buf_bblock)
+    function downShift(buf)
+    {
+        var down = new Array(gameLength);
+        for(let i=0;i<gameLength-1; i++)
+        {
+            down[i] = new Array(gameWidth);
+            down[i] = buf[i+1];
+        }
+        down[gameLength-1] = new Array(gameWidth);
+        for(let j=0; j<gameWidth; j++)
+        down[gameLength-1][j] = false; 
+        return down;
+    }
+    function checkUnion(buf1,buf2)
+    {
+        var unionflag = false;
+        var hit_floor_flag = false;
+        var unionBlock = new Array(gameLength);
+        for(let i=0; i<gameLength; i++)
+        {
+            unionBlock[i] = new Array(gameWidth);
+            for(let j=0; j<gameWidth; j++)
+            {
+                if(buf1[i][j]== true && buf2[i][j]==true)
+                    unionflag = true;
+                else if(i==0 && buf1[i][j]==true)
+                    hit_floor_flag = true;
+
+                if(buf1[i][j]==true || buf2[i][j]==true)
+                    unionBlock[i][j] = true;
+                else
+                    unionBlock[i][j] = false;
+            }
+        }
+    return ({flag:unionflag, buf:unionBlock, floor:hit_floor_flag});
+    }
+    console.log(buf_block);
+    console.log(buf_field);
+    //Case where there is no memory to the foeld buffer.
+    let temp = downShift(buf_block);
+    let union_result = checkUnion(temp, buf_field);
+    console.log(union_result);
+    if(union_result.flag==false)
+    {
+        if(union_result.floor == true)
+        {
+            buf_field = union_result.buf;
+            buf_frame = union_result.buf;
+            generateNewBlock();
+        }
+        else
+        {
+            buf_block = temp;
+            //buf_field = union_result.buf;
+            buf_frame = union_result.buf;
+        }
+    }
+    else
+    {
+        let collision_prevention = checkUnion(buf_block, buf_field);
+        buf_field = collision_prevention.buf; // Explicitly modifying field buffer.
+        buf_frame = collision_prevention.buf;
+        generateNewBlock(); // Implicitly modifies buf_block
+    }
+
+
 }
 
 function main()
 {
     setupWebGL();
     setupShaders();
-    initCubes(gameLength,gameWidth);
+    initBufBool(gameLength, gameWidth, buf_frame);
+    initBufBool(gameLength, gameWidth, buf_field);
+    initBufBool(gameLength, gameWidth, buf_block);
+    objArr = initCubes(gameLength,gameWidth, vertBuffer, triBuffer, 0);
+    bkgdObjArr = initCubes(gameLength, gameWidth, bkgdVertBuffer, bkgdTriBuffer, -0.2)
+//    console.log(vertBuffer);
+    gameEngine();
     renderCubes();
 }
