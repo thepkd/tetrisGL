@@ -6,8 +6,10 @@ var gameWidth = 6;
 var buf_frame = [];
 var buf_field = []; //gameLength X gameWidth
 var buf_block = []; //gameLength X gameWidth
-//var block = []; //2x2
+var curr_block = []; //2x2
 var blockDim = 2;
+var blockTranslateX = 1;
+var blockTranslateY = 0;
 
 // Real Object buffers
 var objArr=[];
@@ -79,6 +81,21 @@ function handleKeyDown(event) {
             Center = vec3.copy(Center,defaultCenter);
             Up = vec3.copy(Up,defaultUp);
             break;
+        
+        case "ArrowLeft": //Move Block Left
+            blockTranslateX -=1;
+            break;
+        case "ArrowRight":
+            blockTranslateX += 1;
+            break;
+        case "ArrowDown":
+            blockTranslateY += 1;
+            break;
+        case "ArrowUp":
+            rotateMatrix(curr_block, blockDim);
+            break;
+        
+
     } // end switch
 } // end handleKeyDown
 
@@ -352,28 +369,40 @@ function initBufBool(l,w, buf)
      }
  }   
 }
-
-function generateNewBlock() //Clears Block Buffer and adds new Block. This should be called after Union check is done and decision to make new block is made after freezing buf_field to buf_frame.
-{
-    function clearAddBuf(buf, block){
+function clearAddBuf(buf, block, xTran, yTran){
         for(let i=0; i<gameLength; i++)
         {
             for(let j=0; j<gameWidth; j++)
             {
                 buf[i][j] = false;
-                if(i>=gameLength-blockDim && (j>=(gameWidth/2)||(j<((gameWidth/2)+blockDim))) )
+                if((i>=gameLength-blockDim-yTran && i<gameLength-yTran)&& (j>=((gameWidth/2)+xTran)&&(j<((gameWidth/2)+blockDim+xTran))) )
                 {
-                    buf[i][j] = block[i-(gameLength-blockDim)][j-(gameWidth/2)];
+                    buf[i][j] = block[i-(gameLength-blockDim-yTran)][j-((gameWidth/2)+xTran)];
                 }
             }
         }
     }
+function generateNewBlock() //Clears Block Buffer and adds new Block. This should be called after Union check is done and decision to make new block is made after freezing buf_field to buf_frame.
+{
+    //function clearAddBuf(buf, block,xTran, yTran){
+    //    for(let i=0; i<gameLength; i++)
+    //    {
+    //        for(let j=0; j<gameWidth; j++)
+    //        {
+    //            buf[i][j] = false;
+    //            if((i>=gameLength-blockDim-yTran && i<gameLength-yTran)&& (j>=((gameWidth/2)+xTran)&&(j<((gameWidth/2)+blockDim+xTran))) )
+    //            {
+    //                buf[i][j] = block[i-(gameLength-blockDim)][j-(gameWidth/2)];
+    //            }
+    //        }
+    //    }
+    //}
     // Block configs;
     var types =  [[[true,false],[true,true]],[[true,true],[true,true]]];
     //2x2 Block.
     let i = getRandomInt(types.length);
-    let block = types[i]; //2x2 block
-    clearAddBuf(buf_block, block);
+    curr_block = types[i]; //2x2 block
+    clearAddBuf(buf_block, curr_block, blockTranslateX, blockTranslateY);
 }
 
 function gameEngine()
@@ -422,22 +451,28 @@ function gameQuantum()
         }
     return ({flag:unionflag, buf:unionBlock, floor:hit_floor_flag});
     }
-    console.log(buf_block);
-    console.log(buf_field);
+    //blockTranslateY++;
+    console.log(blockTranslateY);
+    clearAddBuf(buf_block, curr_block, blockTranslateX, blockTranslateY);
+    //console.log(buf_block);
+    //console.log(buf_field);
     //Case where there is no memory to the foeld buffer.
     let temp = downShift(buf_block);
     let union_result = checkUnion(temp, buf_field);
-    console.log(union_result);
+    //console.log(union_result);
     if(union_result.flag==false)
     {
         if(union_result.floor == true)
         {
             buf_field = union_result.buf;
             buf_frame = union_result.buf;
+            blockTranslateX = 0;
+            blockTranslateY = 0;
             generateNewBlock();
         }
         else
         {
+            blockTranslateY++;
             buf_block = temp;
             //buf_field = union_result.buf;
             buf_frame = union_result.buf;
@@ -448,6 +483,8 @@ function gameQuantum()
         let collision_prevention = checkUnion(buf_block, buf_field);
         buf_field = collision_prevention.buf; // Explicitly modifying field buffer.
         buf_frame = collision_prevention.buf;
+        blockTranslateX = 0;
+        blockTranslateY = 0;
         generateNewBlock(); // Implicitly modifies buf_block
     }
 
