@@ -167,7 +167,7 @@ function setupShaders() {
         
             // ambient term
             if(uSelectBkgd==1)
-            gl_FragColor = vec4(0.0,0.0,0.0,1.0); 
+            gl_FragColor = vec4(0.5,0.5,0.5,0.5); 
             else
             gl_FragColor = vec4(0.0,1.0,1.0,1.0);
         }
@@ -349,8 +349,8 @@ function renderCubes(){
                 //console.log(index); console.log(triBuffer[index]);
                 // triangle buffer: activate and render
                 gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,bkgdTriBuffer[index]); // activate
-                //gl.drawElements(gl.TRIANGLES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
-                gl.drawElements(gl.LINES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
+                gl.drawElements(gl.TRIANGLES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
+                //gl.drawElements(gl.LINES,3*triBufSize,gl.UNSIGNED_SHORT,0); // render
         }
     }
 
