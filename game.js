@@ -7,6 +7,7 @@ var buf_frame = [];
 var buf_field = []; //gameLength X gameWidth
 var buf_block = []; //gameLength X gameWidth
 var curr_block = []; //2x2
+var curr_color;
 var blockDim = 2;
 var blockTranslateX = 1;
 var blockTranslateY = 0;
@@ -83,16 +84,35 @@ function handleKeyDown(event) {
             break;
         
         case "ArrowLeft": //Move Block Left
+            let temp_buf_left = buf_block;
+            clearAddBuf(temp_buf_left, curr_block, blockTranslateX-1, blockTranslateY);
+            let resl = checkUnion(temp_buf_left, buf_field);
+            if(resl.flag==false)
             blockTranslateX -=1;
+            gameQuantum(false);
             break;
         case "ArrowRight":
+            let temp_buf_right = buf_block;
+            clearAddBuf(temp_buf_right, curr_block, blockTranslateX+1, blockTranslateY);
+            let resr = checkUnion(temp_buf_right, buf_field);
+            if(resr.flag==false)
             blockTranslateX += 1;
+            gameQuantum(false);
             break;
         case "ArrowDown":
-            blockTranslateY += 1;
+            if(blockTranslateY<gameLength-3)
+            {
+                let temp_buf_down = buf_block;
+                clearAddBuf(temp_buf_down, curr_block, blockTranslateX, blockTranslateY+1);
+                let resd = checkUnion(temp_buf_down, buf_field);
+                if(resd.flag==false)
+                blockTranslateY += 1;
+            }
+            gameQuantum(false);
             break;
         case "ArrowUp":
             rotateMatrix(curr_block, blockDim);
+            gameQuantum(false);
             break;
         
 
@@ -163,13 +183,14 @@ function setupShaders() {
     var fShaderCode = `
         precision mediump float; // set float to medium precision
         uniform int uSelectBkgd;    
+        uniform vec3 uDiffuse;
         void main(void) {
         
             // ambient term
             if(uSelectBkgd==1)
             gl_FragColor = vec4(0.5,0.5,0.5,0.5); 
             else
-            gl_FragColor = vec4(0.0,1.0,1.0,1.0);
+            gl_FragColor = vec4(uDiffuse,1.0);
         }
     `;
     
@@ -202,6 +223,9 @@ function setupShaders() {
                 // locate and enable vertex attributes
                 vPosAttribLoc = gl.getAttribLocation(shaderProgram, "aVertexPosition"); // ptr to vertex pos attrib
                 gl.enableVertexAttribArray(vPosAttribLoc); // connect attrib to array
+
+                vColPos =  gl.getUniformLocation(shaderProgram, "uDiffuse");
+                
                 
                 mMatrixULoc = gl.getUniformLocation(shaderProgram, "umMatrix"); // ptr to mmat
                 pvmMatrixULoc = gl.getUniformLocation(shaderProgram, "upvmMatrix"); // ptr to pvmmat
@@ -242,6 +266,11 @@ return({vertices:vertexBuf, triangles:triBuf});
 }
 
 
+function tetromino(){
+    this.present = false;
+    this.color = vec3.fromValues(255,0,0);
+}
+
 function cubeObj() {
     this.on = false; // initialise as not on
     this.color = vec3.fromValues(0,255,255); // Cyan
@@ -278,7 +307,7 @@ function initCubes(l,w, vert, tri, z) {
             gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(cubeModel.triangles),gl.STATIC_DRAW);
         }
     }
-    console.log(arr);
+    //console.log(arr);
     return arr;
 }
 
@@ -307,18 +336,24 @@ function renderCubes(){
     mat4.multiply(pvMatrix,pvMatrix,vMatrix); // projection * view
 
     window.requestAnimationFrame(renderCubes); // set up frame render callback
+    //console.log(buf_frame);
     var currentModel;
     for(var i=0;i<gameLength; i++)
     {
         for(var j=0; j<gameWidth; j++){
                 var index= (gameWidth*i)+j;
                 gl.uniform1i(selectBkgdULoc, 0);
-                if(buf_frame[i][j]==true)
+                if(buf_frame[i][j].present==true)
                 {
                 makeCubeTransform(objArr[i][j]);
                 mat4.multiply(pvmMatrix,pvMatrix,mMatrix); // project * view * model
                 gl.uniformMatrix4fv(mMatrixULoc, false, mMatrix); // pass in the m matrix
                 gl.uniformMatrix4fv(pvmMatrixULoc, false, pvmMatrix); // pass in the hpvm matrix
+
+                var col = vec3.create();
+                vec3.scale(col,buf_frame[i][j].color,1/255);
+                console.log(col);
+                gl.uniform3fv(vColPos,col); //TODO
         
                 // vertex buffer: activate and feed into vertex shader
                 gl.bindBuffer(gl.ARRAY_BUFFER,vertBuffer[index]); // activate
@@ -365,22 +400,25 @@ function initBufBool(l,w, buf)
      buf[i] = new Array(w);
      for(let j=0; j<w; j++)
      {            
-        buf[i][j] = false;
+        buf[i][j] = new tetromino();
      }
  }   
+ //console.log(buf);
 }
 function clearAddBuf(buf, block, xTran, yTran){
         for(let i=0; i<gameLength; i++)
         {
             for(let j=0; j<gameWidth; j++)
             {
-                buf[i][j] = false;
+                buf[i][j] = new tetromino();
                 if((i>=gameLength-blockDim-yTran && i<gameLength-yTran)&& (j>=((gameWidth/2)+xTran)&&(j<((gameWidth/2)+blockDim+xTran))) )
                 {
-                    buf[i][j] = block[i-(gameLength-blockDim-yTran)][j-((gameWidth/2)+xTran)];
+                    buf[i][j].present = block[i-(gameLength-blockDim-yTran)][j-((gameWidth/2)+xTran)];
+                    buf[i][j].color = curr_color;
                 }
             }
         }
+        //console.log(buf);
     }
 function generateNewBlock() //Clears Block Buffer and adds new Block. This should be called after Union check is done and decision to make new block is made after freezing buf_field to buf_frame.
 {
@@ -398,10 +436,14 @@ function generateNewBlock() //Clears Block Buffer and adds new Block. This shoul
     //    }
     //}
     // Block configs;
-    var types =  [[[true,false],[true,true]],[[true,true],[true,true]]];
+    var types =  [[[true,false],[true,true]],[[true,true],[true,true]],[[true,true],[false,false]]];
+    var color = [vec3.fromValues(227,49,36), vec3.fromValues(237,237,74), vec3.fromValues(237,74,112), vec3.fromValues(70,76,227)]; 
     //2x2 Block.
     let i = getRandomInt(types.length);
+    let j = getRandomInt(color.length);
     curr_block = types[i]; //2x2 block
+    curr_color = color[j];
+
     clearAddBuf(buf_block, curr_block, blockTranslateX, blockTranslateY);
 }
 
@@ -409,10 +451,39 @@ function gameEngine()
 {
     //Every time interval bring the 
     generateNewBlock();
-    setInterval(gameQuantum, 1500);
+    setInterval(function() {gameQuantum(true);}, 1500);
 }
 
-function gameQuantum()
+function checkUnion(buf1,buf2)
+    {
+        var unionflag = false;
+        var hit_floor_flag = false;
+        var unionBlock = new Array(gameLength);
+        for(let i=0; i<gameLength; i++)
+        {
+            unionBlock[i] = new Array(gameWidth);
+            for(let j=0; j<gameWidth; j++)
+            {
+                unionBlock[i][j] = new tetromino;
+                if(buf1[i][j].present== true && buf2[i][j].present==true)
+                    unionflag = true;
+                else if(i==0 && buf1[i][j].present==true)
+                    hit_floor_flag = true;
+
+                if(buf1[i][j].present==true || buf2[i][j].present==true)
+                {
+                    unionBlock[i][j].present= true;
+                    if(buf1[i][j].present==true) unionBlock[i][j].color = buf1[i][j].color;
+                    else unionBlock[i][j].color = buf2[i][j].color;
+                }
+                else
+                    unionBlock[i][j].present = false;
+            }
+        }
+    return ({flag:unionflag, buf:unionBlock, floor:hit_floor_flag});
+    }
+
+function gameQuantum(down)
 {
     //Call downshift on buffer_block->Run Check Union(which sees if downshift gives a positive union->If yes, save old, geenarate new buf_bblock)
     function downShift(buf)
@@ -428,36 +499,41 @@ function gameQuantum()
         down[gameLength-1][j] = false; 
         return down;
     }
-    function checkUnion(buf1,buf2)
-    {
-        var unionflag = false;
-        var hit_floor_flag = false;
-        var unionBlock = new Array(gameLength);
-        for(let i=0; i<gameLength; i++)
-        {
-            unionBlock[i] = new Array(gameWidth);
-            for(let j=0; j<gameWidth; j++)
-            {
-                if(buf1[i][j]== true && buf2[i][j]==true)
-                    unionflag = true;
-                else if(i==0 && buf1[i][j]==true)
-                    hit_floor_flag = true;
+    //function checkUnion(buf1,buf2)
+    //{
+    //    var unionflag = false;
+    //    var hit_floor_flag = false;
+    //    var unionBlock = new Array(gameLength);
+    //    for(let i=0; i<gameLength; i++)
+    //    {
+    //        unionBlock[i] = new Array(gameWidth);
+    //        for(let j=0; j<gameWidth; j++)
+    //        {
+    //            if(buf1[i][j]== true && buf2[i][j]==true)
+    //                unionflag = true;
+    //            else if(i==0 && buf1[i][j]==true)
+    //                hit_floor_flag = true;
 
-                if(buf1[i][j]==true || buf2[i][j]==true)
-                    unionBlock[i][j] = true;
-                else
-                    unionBlock[i][j] = false;
-            }
-        }
-    return ({flag:unionflag, buf:unionBlock, floor:hit_floor_flag});
-    }
+    //            if(buf1[i][j]==true || buf2[i][j]==true)
+    //                unionBlock[i][j] = true;
+    //            else
+    //                unionBlock[i][j] = false;
+    //        }
+    //    }
+    //return ({flag:unionflag, buf:unionBlock, floor:hit_floor_flag});
+    //}
     //blockTranslateY++;
-    console.log(blockTranslateY);
+    //console.log(blockTranslateY);
     clearAddBuf(buf_block, curr_block, blockTranslateX, blockTranslateY);
     //console.log(buf_block);
     //console.log(buf_field);
     //Case where there is no memory to the foeld buffer.
-    let temp = downShift(buf_block);
+    let temp;
+    if(down)
+        temp = downShift(buf_block);
+    else
+        temp = buf_block;
+    let temp_buf_block = buf_block;
     let union_result = checkUnion(temp, buf_field);
     //console.log(union_result);
     if(union_result.flag==false)
@@ -472,6 +548,7 @@ function gameQuantum()
         }
         else
         {
+            if(down)
             blockTranslateY++;
             buf_block = temp;
             //buf_field = union_result.buf;
@@ -480,7 +557,7 @@ function gameQuantum()
     }
     else
     {
-        let collision_prevention = checkUnion(buf_block, buf_field);
+        let collision_prevention = checkUnion(temp_buf_block, buf_field);
         buf_field = collision_prevention.buf; // Explicitly modifying field buffer.
         buf_frame = collision_prevention.buf;
         blockTranslateX = 0;
@@ -498,6 +575,7 @@ function main()
     initBufBool(gameLength, gameWidth, buf_frame);
     initBufBool(gameLength, gameWidth, buf_field);
     initBufBool(gameLength, gameWidth, buf_block);
+    console.log(buf_block);
     objArr = initCubes(gameLength,gameWidth, vertBuffer, triBuffer, 0);
     bkgdObjArr = initCubes(gameLength, gameWidth, bkgdVertBuffer, bkgdTriBuffer, -0.2)
 //    console.log(vertBuffer);
