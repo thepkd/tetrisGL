@@ -2,6 +2,11 @@
 var gameLength = 12;
 var gameWidth = 6;
 
+// Game Score
+var score=0;
+var ctx; //Context for displaying score
+var mygame;
+
 // Game Matrices
 var buf_frame = [];
 var buf_field = []; //gameLength X gameWidth
@@ -9,7 +14,7 @@ var buf_block = []; //gameLength X gameWidth
 var curr_block = []; //2x2
 var curr_color;
 var blockDim = 2;
-var blockTranslateX = 1;
+var blockTranslateX = 0;
 var blockTranslateY = 0;
 
 // Real Object buffers
@@ -30,8 +35,10 @@ var pvmMatrixULoc;
 
 var selectBkgdULoc;
 
-var defaultEye = vec3.fromValues(0.5,0.5,1.5); // default eye position in world space
-var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
+//var defaultEye = vec3.fromValues(0.5,0.5,1.5); // default eye position in world space
+var defaultEye = vec3.fromValues(1.3,2.8,7.75); // default eye position in world space
+//var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
+var defaultCenter = vec3.fromValues(1.3,2.8,6.75); // default view direction in world space
 var defaultUp = vec3.fromValues(0,1,0); // default view up vector
 var lightAmbient = vec3.fromValues(1,1,1); // default light ambient emission
 var lightDiffuse = vec3.fromValues(1,1,1); // default light diffuse emission
@@ -56,6 +63,7 @@ function handleKeyDown(event) {
         case "KeyA": // translate view left, rotate left with shift
             Center = vec3.add(Center,Center,vec3.scale(temp,viewRight,0.05));
             Eye = vec3.add(Eye,Eye,vec3.scale(temp,viewRight,0.05));
+            console.log(Eye+" "+Center);
             break;
         case "KeyD": // translate view right, rotate right with shift
             Center = vec3.add(Center,Center,vec3.scale(temp,viewRight,-0.05));
@@ -88,7 +96,15 @@ function handleKeyDown(event) {
             clearAddBuf(temp_buf_left, curr_block, blockTranslateX-1, blockTranslateY);
             let resl = checkUnion(temp_buf_left, buf_field);
             if(resl.flag==false)
-            blockTranslateX -=1;
+            {
+                if(blockTranslateX>(-gameWidth/2))
+                    blockTranslateX-=1;
+                //else if(curr_block==[[false,true],[false,true]])
+                //{
+                //    if(blockTranslateX>(-gameWidth/2)-1)
+                //    blockTranslateX-=1;
+                //}
+            }
             gameQuantum(false);
             break;
         case "ArrowRight":
@@ -96,7 +112,10 @@ function handleKeyDown(event) {
             clearAddBuf(temp_buf_right, curr_block, blockTranslateX+1, blockTranslateY);
             let resr = checkUnion(temp_buf_right, buf_field);
             if(resr.flag==false)
-            blockTranslateX += 1;
+            {
+                if((gameWidth-(gameWidth/2)-blockDim-blockTranslateX)>0)
+                    blockTranslateX+=1;
+            }
             gameQuantum(false);
             break;
         case "ArrowDown":
@@ -142,7 +161,11 @@ function setupWebGL() {
     // Get the canvas and context
     var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     gl = canvas.getContext("webgl"); // get a webgl object from it
-    
+   
+    var scorer = document.getElementById("myScoreCanvas");
+    ctx= scorer.getContext("2d");
+    ctx.font = "30px Arial";
+    //ctx.fillText("Hello xxxxxxxxxxxxxx",20,30);
     try {
       if (gl == null) {
         throw "unable to create gl context -- is your browser gl ready?";
@@ -189,7 +212,7 @@ function setupShaders() {
         
             // ambient term
             if(uSelectBkgd==1)
-            gl_FragColor = vec4(0.5,0.5,0.5,0.5); 
+            gl_FragColor = vec4(0.0,0.0,0.0,0.5); 
             else
             gl_FragColor = vec4(uDiffuse,1.0);
         }
@@ -444,15 +467,27 @@ function generateNewBlock() //Clears Block Buffer and adds new Block. This shoul
     let j = getRandomInt(color.length);
     curr_block = types[i]; //2x2 block
     curr_color = color[j];
-
+    let temp_buf_down = buf_block;
+    clearAddBuf(temp_buf_down, curr_block, blockTranslateX, blockTranslateY+1);
+    let resd = checkUnion(temp_buf_down, buf_field);
+    if(resd.flag==false)
     clearAddBuf(buf_block, curr_block, blockTranslateX, blockTranslateY);
+    else
+    {
+    clearAddBuf(buf_block, curr_block, blockTranslateX, blockTranslateY);
+    console.log("Game Over!");
+    alert("GAMEOVER!");
+    clearInterval(mygame);
+    }
+    
 }
 
 function gameEngine()
 {
     //Every time interval bring the 
     generateNewBlock();
-    setInterval(function() {gameQuantum(true);}, 1500);
+    mygame = setInterval(function() {gameQuantum(true);}, 120);
+
 }
 
 function checkUnion(buf1,buf2)
@@ -535,6 +570,7 @@ function gameQuantum(down)
     else
         temp = buf_block;
     let temp_buf_block = buf_block;
+    checkRowFull(buf_field);
     let union_result = checkUnion(temp, buf_field);
     //console.log(union_result);
     if(union_result.flag==false)
@@ -566,7 +602,41 @@ function gameQuantum(down)
         generateNewBlock(); // Implicitly modifies buf_block
     }
 
+//ctx.fillText("",20,30);
+ctx.clearRect(0,0,300,200);
+ctx.strokeText("SCORE:"+score,20,25);
+}
 
+function checkRowFull(buf)
+{
+    for(let i=0;i<gameLength;i++)
+    {
+        let flag= true;
+        for(let j=0; j< gameWidth; j++)
+        {
+            if(buf[i][j].present==false)
+                flag=false;
+     
+        }
+        if(flag==true)
+        {
+        for(let k=i;k<gameLength;k++)
+        {
+            if(k!=gameLength-1)
+            {
+            for(let l=0;l<gameWidth;l++)
+                buf[k][l] = buf[k+1][l]; 
+            }
+            else
+            {
+                for(let m=0;m<gameWidth;m++)
+                buf[k][m] = new tetromino();
+            }
+        }
+        i--;
+        score++;
+        }
+    }
 }
 
 function main()
