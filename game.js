@@ -132,6 +132,7 @@ function setupWebGL() {
       bkgdImage.crossorigin = "anonymous";
       bkgdImage.src = "https://ncsucgclass.github.io/prog3/sky.jpg";
       //bkgdImage.src = "https://raw.githubusercontent.com/thepkd/4x4bitFusion/master/564.png";
+      //bkgdImage.src = "https://ncsucgclass.github.io/prog4/billie.png";
       bkgdImage.onload = function(){
           var iw = bkgdImage.width, ih = bkgdImage.height;
           imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);   
@@ -352,7 +353,7 @@ function renderCubes(){
 
                 var col = vec3.create();
                 vec3.scale(col,buf_frame[i][j].color,1/255);
-                console.log(col);
+                //console.log(col);
                 gl.uniform3fv(vColPos,col); //TODO
         
                 // vertex buffer: activate and feed into vertex shader
